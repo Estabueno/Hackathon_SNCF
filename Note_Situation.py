@@ -27,15 +27,16 @@ EMAIL_PASSWORD = "fqum hxmq agup saks"
 TIMEZONE = "Europe/Paris"
 
 # ============= FONCTIONS DE COMMUNICATION =============
-def envoyer_pdf_par_mail(pdf_file_path, destinataire, sujet="Synthèse perturbations", message="Veuillez trouver en pièce jointe le rapport PDF."):
+def envoyer_pdf_par_mail(pdf_file_path, audio_file_path, destinataire, sujet="Synthèse perturbations", message="Veuillez trouver en pièce jointe le rapport PDF."):
     """
-    Envoie un PDF par email via le serveur SMTP de Gmail
+    Envoie un email contenant deux pièces jointes : un fichier PDF et un fichier audio.
     
     Args:
-        pdf_file_path (str): Chemin du fichier PDF à envoyer
-        destinataire (str): Adresse email du destinataire
-        sujet (str): Sujet du mail
-        message (str): Corps du message
+        pdf_file_path (str): Chemin du fichier PDF à envoyer.
+        audio_file_path (str): Chemin du fichier audio à envoyer.
+        destinataire (str): Adresse email du destinataire.
+        sujet (str): Sujet du mail.
+        message (str): Corps du message.
     """
     # Création du message
     msg = MIMEMultipart()
@@ -50,6 +51,11 @@ def envoyer_pdf_par_mail(pdf_file_path, destinataire, sujet="Synthèse perturbat
         part = MIMEApplication(f.read(), Name=pdf_file_path)
         part['Content-Disposition'] = f'attachment; filename="{pdf_file_path}"'
         msg.attach(part)
+
+    with open(audio_file_path, 'rb') as f:
+        audio_part = MIMEApplication(f.read(), Name=audio_file_path)
+        audio_part['Content-Disposition'] = f'attachment; filename="{(audio_file_path)}"'
+        msg.attach(audio_part)
 
     # Connexion SMTP sécurisée (Gmail)
     try:
@@ -233,7 +239,7 @@ def generate_prompt(dataframe, modele_pdf):
         "- Réseau **Tram-Train**\n"
 
         "Si une **ligne** ou un **mode de transport** est marqué comme *Non spécifiée*, "
-        "essaye de le **déduire à partir du texte du message** (gares citées, tronçons, noms de ligne, RER, etc.). "
+        "essaye de le **déduire à partir du texte du message** (gares citées, tronçons, noms de ligne, RER, etc.) sinon n'en parle pas. "
         "Classe l'information dans le bon réseau si la déduction est fiable.\n\n"
 
         "Voici les données brutes à utiliser :\n\n"
@@ -403,7 +409,7 @@ def process_siri_to_pdf():
         print(f"Erreur lors de la génération du PDF: {e}")
         return f"Erreur lors de la génération du PDF: {e}"
 
-def tts(file):
+def tts(pdf_file):
     """
     Génère un fichier audio à partir du contenu d'un fichier texte
     
@@ -414,10 +420,10 @@ def tts(file):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(device)
 
-    with open(file, "r") as f:
-        txt_content = f.read()
+    txt_content = extraire_contenu_pdf_modele(pdf_file)
 
-    output_file = f"output.wav_{now}"
+    print("Génartion de l'audio")
+    output_file = f"output_{now}.wav"
     tts.tts_to_file(
         text=txt_content, 
         speaker_wav="my/cloning/les-lectures-de-simone-un-nouveau-pneu.wav", 
@@ -426,6 +432,8 @@ def tts(file):
         speed=0.9
     )
     print(f"Fichier audio généré: {output_file}")
+
+    return output_file
 
 def job():
     """
@@ -442,17 +450,18 @@ def job():
             # Sujet avec date et heure locale
             heure_point = datetime.now(pytz.timezone(TIMEZONE))
             sujet_automatique = heure_point.strftime("Point de situation - %d/%m/%Y à %Hh%M")
+
+            # Génération audio
+            audio_file = tts(pdf_file)
             
             # Envoi par mail
             envoyer_pdf_par_mail(
                 pdf_file_path=pdf_file,
+                audio_file_path=audio_file,
                 destinataire=EMAIL_EXPEDITEUR,
                 sujet=sujet_automatique,
                 message="Bonjour,\n\nVoici la synthèse des perturbations SNCF des 15 dernières minutes.\n\nCordialement."
             )
-            
-            # Génération audio
-            tts(pdf_file)
         else:
             print("Aucun PDF généré ou erreur lors de la génération. Aucun email envoyé.")
     except Exception as e:
@@ -468,7 +477,7 @@ if __name__ == "__main__":
     job()
     
     # Planifier l'exécution toutes les 15 minutes
-    schedule.every(1).minutes.do(job)
+    schedule.every(15).minutes.do(job)
     
     # Boucle principale pour maintenir le script en exécution
     try:
