@@ -28,6 +28,15 @@ TIMEZONE = "Europe/Paris"
 
 # ============= FONCTIONS DE COMMUNICATION =============
 def envoyer_pdf_par_mail(pdf_file_path, destinataire, sujet="Synthèse perturbations", message="Veuillez trouver en pièce jointe le rapport PDF."):
+    """
+    Envoie un PDF par email via le serveur SMTP de Gmail
+    
+    Args:
+        pdf_file_path (str): Chemin du fichier PDF à envoyer
+        destinataire (str): Adresse email du destinataire
+        sujet (str): Sujet du mail
+        message (str): Corps du message
+    """
     # Création du message
     msg = MIMEMultipart()
     msg['From'] = EMAIL_EXPEDITEUR
@@ -54,6 +63,12 @@ def envoyer_pdf_par_mail(pdf_file_path, destinataire, sujet="Synthèse perturbat
         print(f"Échec de l'envoi : {e}")
 
 def call_siri_api():
+    """
+    Appelle l'API SIRI pour récupérer les messages généraux
+    
+    Returns:
+        str: Données JSON de l'API ou None en cas d'erreur
+    """
     url = "https://prim.iledefrance-mobilites.fr/marketplace/general-message?LineRef=ALL"
     
     try:
@@ -76,6 +91,15 @@ def call_siri_api():
 
 # ============= FONCTIONS DE TRAITEMENT DE DONNÉES =============
 def extraire_contenu_pdf_modele(fichier_pdf_exemple):
+    """
+    Extrait le contenu textuel d'un fichier PDF exemple
+    
+    Args:
+        fichier_pdf_exemple (str): Chemin du fichier PDF à extraire
+        
+    Returns:
+        str: Contenu textuel du PDF
+    """
     doc = fitz.open(fichier_pdf_exemple)
     contenu = ""
     for page in doc:
@@ -83,6 +107,16 @@ def extraire_contenu_pdf_modele(fichier_pdf_exemple):
     return contenu.strip()
 
 def extract_siri_data(json_data):
+    """
+    Extrait et filtre les informations pertinentes du message SIRI
+    Filtre seulement les messages créés dans les 15 dernières minutes
+    
+    Args:
+        json_data (str): Données JSON de l'API SIRI
+        
+    Returns:
+        DataFrame: Données extraites et filtrées
+    """
     # Charger les données JSON
     data = json.loads(json_data)
     
@@ -174,6 +208,16 @@ def extract_siri_data(json_data):
     return df
 
 def generate_prompt(dataframe, modele_pdf):
+    """
+    Génère un prompt pour l'API OpenAI à partir des données extraites
+    
+    Args:
+        dataframe (DataFrame): Données extraites et filtrées
+        modele_pdf (str): Contenu du PDF exemple
+        
+    Returns:
+        str: Prompt formaté pour l'API OpenAI
+    """
     prompt = (
         "Tu es un assistant de la SNCF. À partir des données suivantes extraites de messages SIRI "
         "des 15 dernières minutes, rédige une synthèse claire, concise et structurée à destination du directeur opérationnel.\n\n"
@@ -228,6 +272,13 @@ def generate_prompt(dataframe, modele_pdf):
     return prompt
 
 def enregistrer_pdf(nom_fichier, contenu_texte):
+    """
+    Enregistre un contenu texte dans un fichier PDF
+    
+    Args:
+        nom_fichier (str): Nom du fichier PDF à créer
+        contenu_texte (str): Contenu à enregistrer dans le PDF
+    """
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font('Arial', '', 12)
@@ -255,6 +306,12 @@ def enregistrer_pdf(nom_fichier, contenu_texte):
 
 # ============= FONCTIONS PRINCIPALES =============
 def process_siri_to_pdf():
+    """
+    Processus principal: appelle l'API SIRI, traite les données et génère un PDF
+    
+    Returns:
+        str: Nom du fichier PDF généré ou message d'erreur
+    """
     # Charger le PDF modèle et le référentiel des lignes
     modele_pdf = extraire_contenu_pdf_modele("Note de situation.pdf")
     
@@ -347,6 +404,12 @@ def process_siri_to_pdf():
         return f"Erreur lors de la génération du PDF: {e}"
 
 def tts(file):
+    """
+    Génère un fichier audio à partir du contenu d'un fichier texte
+    
+    Args:
+        file (str): Chemin du fichier texte à convertir en audio
+    """
     now = datetime.now(pytz.timezone(TIMEZONE))
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(device)
@@ -365,6 +428,9 @@ def tts(file):
     print(f"Fichier audio généré: {output_file}")
 
 def job():
+    """
+    Fonction principale qui sera exécutée toutes les 15 minutes
+    """
     print(f"\n[{datetime.now()}] EXÉCUTION PLANIFIÉE DÉMARRÉE\n")
     try:
         # Exécuter le processus principal
